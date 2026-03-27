@@ -29,7 +29,7 @@ const apiCall = async (method, path, body) => {
   const res = await fetch(url, options);
   const text = await res.text();
 
-  if (res.status === 409) {
+  if (res.status === 409 || (res.status === 400 && text.includes("duplicate"))) {
     console.log(`  Already exists: ${path}`);
     return null;
   }
@@ -147,7 +147,7 @@ const createExperiment = async () => {
       flags: {
         [FLAG_KEY]: {
           ruleId: "fallthrough",
-          flagConfigVersion: 1,
+          flagConfigVersion: await getFlagConfigVersion(),
         },
       },
     },
@@ -170,7 +170,7 @@ const startExperiment = async () => {
   console.log("Starting experiment iteration...");
   const experiments = await apiCall(
     "GET",
-    `/projects/${LD_PROJECT_KEY}/environments/${LD_ENVIRONMENT_KEY}/experiments?filter=key equals recommendations-engagement`
+    `/projects/${LD_PROJECT_KEY}/environments/${LD_ENVIRONMENT_KEY}/experiments?filter=flagKey:${FLAG_KEY}`
   );
 
   if (experiments?.items?.length > 0) {
@@ -193,6 +193,11 @@ const startExperiment = async () => {
 const getFlagVariationId = async (index) => {
   const flag = await apiCall("GET", `/flags/${LD_PROJECT_KEY}/${FLAG_KEY}`);
   return flag.variations[index]._id;
+};
+
+const getFlagConfigVersion = async () => {
+  const flag = await apiCall("GET", `/flags/${LD_PROJECT_KEY}/${FLAG_KEY}`);
+  return flag.environments[LD_ENVIRONMENT_KEY].version;
 };
 
 const getCurrentMemberId = async () => {
