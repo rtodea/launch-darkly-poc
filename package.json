@@ -1,0 +1,22 @@
+{
+  "name": "launch-darkly-poc",
+  "version": "1.0.0",
+  "description": "LaunchDarkly A/B Testing Proof-of-Concept for iOS streaming app",
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "setup": "node src/setup.js",
+    "simulate:win": "node src/run.js --scenario=win",
+    "simulate:lose": "node src/run.js --scenario=lose",
+    "simulate:inconclusive": "node src/run.js --scenario=inconclusive",
+    "simulate:all": "node src/run.js --scenario=all",
+    "demo": "node src/run.js --scenario=win --staggered",
+    "serve": "npx serve frontend -l 3000"
+  },
+  "dependencies": {
+    "@launchdarkly/node-server-sdk": "^9.10.10",
+    "dotenv": "^16.4.7"
+  }
+}

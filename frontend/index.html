@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Zeam Streaming</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="phone-frame">
+    <div class="status-bar">
+      <span>9:41</span>
+      <span class="status-icons">
+        <span class="signal">&#9679;&#9679;&#9679;&#9679;&#9675;</span>
+        <span class="battery">&#128267; 87%</span>
+      </span>
+    </div>
+
+    <header class="app-header">
+      <h1>Zeam</h1>
+      <nav class="tab-bar">
+        <button class="tab active">Live</button>
+        <button class="tab">Browse</button>
+        <button class="tab">My List</button>
+      </nav>
+    </header>
+
+    <main class="content">
+      <!-- Live Now Section -->
+      <section class="content-row">
+        <h2>Live Now</h2>
+        <div class="tile-scroll">
+          <div class="tile live" data-content="live-1">
+            <div class="live-badge">LIVE</div>
+            <div class="tile-title">Championship Finals</div>
+            <div class="tile-viewers">12.4K watching</div>
+          </div>
+          <div class="tile live" data-content="live-2">
+            <div class="live-badge">LIVE</div>
+            <div class="tile-title">Morning Talk Show</div>
+            <div class="tile-viewers">8.1K watching</div>
+          </div>
+          <div class="tile live" data-content="live-3">
+            <div class="live-badge">LIVE</div>
+            <div class="tile-title">Music Festival</div>
+            <div class="tile-viewers">45.2K watching</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Recommendations Row (controlled by feature flag) -->
+      <section class="content-row recommendations-row" id="recommendations" style="display: none;">
+        <h2>Recommended for You</h2>
+        <div class="tile-scroll">
+          <div class="tile recommended" data-content="rec-1">
+            <div class="rec-badge">&#9733;</div>
+            <div class="tile-title">Documentary: Ocean Deep</div>
+            <div class="tile-meta">Based on your history</div>
+          </div>
+          <div class="tile recommended" data-content="rec-2">
+            <div class="rec-badge">&#9733;</div>
+            <div class="tile-title">Live Concert: Jazz Night</div>
+            <div class="tile-meta">Trending in your area</div>
+          </div>
+          <div class="tile recommended" data-content="rec-3">
+            <div class="rec-badge">&#9733;</div>
+            <div class="tile-title">Series: Code Breakers</div>
+            <div class="tile-meta">96% match</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Trending Section -->
+      <section class="content-row">
+        <h2>Trending</h2>
+        <div class="tile-scroll">
+          <div class="tile" data-content="trend-1">
+            <div class="tile-title">Comedy Special</div>
+            <div class="tile-meta">2.1M views</div>
+          </div>
+          <div class="tile" data-content="trend-2">
+            <div class="tile-title">Tech Review</div>
+            <div class="tile-meta">890K views</div>
+          </div>
+          <div class="tile" data-content="trend-3">
+            <div class="tile-title">Travel Vlog: Tokyo</div>
+            <div class="tile-meta">1.5M views</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Continue Watching -->
+      <section class="content-row">
+        <h2>Continue Watching</h2>
+        <div class="tile-scroll">
+          <div class="tile" data-content="continue-1">
+            <div class="tile-title">Series: The Algorithm</div>
+            <div class="tile-meta">S2 E4 &middot; 23 min left</div>
+            <div class="progress-bar"><div class="progress" style="width: 65%"></div></div>
+          </div>
+          <div class="tile" data-content="continue-2">
+            <div class="tile-title">Movie: Digital Frontier</div>
+            <div class="tile-meta">1h 12min left</div>
+            <div class="progress-bar"><div class="progress" style="width: 30%"></div></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Debug overlay showing flag state -->
+    <div class="debug-panel" id="debug">
+      <div id="debug-status">Initializing LD...</div>
+      <div id="debug-user">User: —</div>
+      <div id="debug-flag">Flag: —</div>
+      <div id="debug-events">Events: 0</div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

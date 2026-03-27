@@ -1,0 +1,20 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "3000:80"
+
+  simulator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file: .env
+    # Override scenario and mode via command
+    # Examples:
+    #   docker compose run simulator --scenario=win --staggered
+    #   docker compose run simulator --scenario=lose
+    #   docker compose run simulator --scenario=all --staggered --wave-size=50
+    profiles:
+      - tools
