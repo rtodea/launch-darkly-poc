@@ -1,9 +1,11 @@
 /**
  * Automated LaunchDarkly setup via REST API.
- * Creates the feature flag, metric, and experiment programmatically
- * so there's no manual UI clicking required.
+ * Creates the feature flag, metric, and experiment programmatically.
  *
  * Usage: node src/setup.js
+ *
+ * Run `npm run cleanup` first if you need a fresh start.
+ * Each run creates a uniquely-timestamped experiment.
  */
 
 import {
@@ -13,32 +15,12 @@ import {
   FLAG_KEY,
   METRICS,
 } from "./config.js";
+import { apiCall, getFlag, getCurrentMemberId } from "./api.js";
 
-const API_BASE = "https://app.launchdarkly.com/api/v2";
-
-const headers = () => ({
-  Authorization: LD_API_KEY,
-  "Content-Type": "application/json",
-});
-
-const apiCall = async (method, path, body) => {
-  const url = `${API_BASE}${path}`;
-  const options = { method, headers: headers() };
-  if (body) options.body = JSON.stringify(body);
-
-  const res = await fetch(url, options);
-  const text = await res.text();
-
-  if (res.status === 409 || (res.status === 400 && text.includes("duplicate"))) {
-    console.log(`  Already exists: ${path}`);
-    return null;
-  }
-
-  if (!res.ok) {
-    throw new Error(`API ${method} ${path} → ${res.status}: ${text}`);
-  }
-
-  return text ? JSON.parse(text) : null;
+const timestamp = () => {
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}_${pad(now.getMinutes())}`;
 };
 
 const createFlag = async () => {
@@ -60,7 +42,7 @@ const createFlag = async () => {
       usingMobileKey: true,
       usingEnvironmentId: true,
     },
-  });
+  }, { ignoreDuplicate: true });
 };
 
 const enableFlag = async () => {
@@ -103,106 +85,85 @@ const createMetric = async () => {
     eventKey: METRICS.contentClicked,
     isNumeric: false,
     successCriteria: "HigherThanBaseline",
-  });
+  }, { ignoreDuplicate: true });
 };
 
-const createExperiment = async () => {
-  console.log("Creating experiment...");
-
-  const iterations = [
-    {
-      hypothesis: "Adding a recommendations row will increase content engagement by at least 10%",
-      canReshuffleTraffic: true,
-      metrics: [
-        {
-          key: METRICS.contentClicked,
-          isGroup: false,
-        },
-      ],
-      primarySingleMetricKey: METRICS.contentClicked,
-      treatments: [
-        {
-          name: "Control",
-          baseline: true,
-          allocationPercent: "50",
-          parameters: [
-            {
-              flagKey: FLAG_KEY,
-              variationId: await getFlagVariationId(0),
-            },
-          ],
-        },
-        {
-          name: "Treatment",
-          baseline: false,
-          allocationPercent: "50",
-          parameters: [
-            {
-              flagKey: FLAG_KEY,
-              variationId: await getFlagVariationId(1),
-            },
-          ],
-        },
-      ],
-      flags: {
-        [FLAG_KEY]: {
-          ruleId: "fallthrough",
-          flagConfigVersion: await getFlagConfigVersion(),
-        },
+const buildIterationInput = async () => {
+  const flag = await getFlag();
+  return {
+    hypothesis: "Adding a recommendations row will increase content engagement by at least 10%",
+    canReshuffleTraffic: true,
+    metrics: [
+      {
+        key: METRICS.contentClicked,
+        isGroup: false,
+      },
+    ],
+    primarySingleMetricKey: METRICS.contentClicked,
+    treatments: [
+      {
+        name: "Control",
+        baseline: true,
+        allocationPercent: "50",
+        parameters: [
+          {
+            flagKey: FLAG_KEY,
+            variationId: flag.variations[0]._id,
+          },
+        ],
+      },
+      {
+        name: "Treatment",
+        baseline: false,
+        allocationPercent: "50",
+        parameters: [
+          {
+            flagKey: FLAG_KEY,
+            variationId: flag.variations[1]._id,
+          },
+        ],
+      },
+    ],
+    flags: {
+      [FLAG_KEY]: {
+        ruleId: "fallthrough",
+        flagConfigVersion: flag.environments[LD_ENVIRONMENT_KEY].version,
       },
     },
-  ];
+  };
+};
+
+const createExperiment = async (experimentKey) => {
+  console.log(`Creating experiment: ${experimentKey}`);
+
+  const memberId = await getCurrentMemberId();
+  const iterationInput = await buildIterationInput();
 
   await apiCall(
     "POST",
     `/projects/${LD_PROJECT_KEY}/environments/${LD_ENVIRONMENT_KEY}/experiments`,
     {
-      name: "Recommendations Row Engagement",
+      name: `Recommendations Engagement (${experimentKey.split("-").slice(-1)[0].replace("_", ":")})`,
       description: "Measures whether the recommendations row increases content clicks",
-      key: "recommendations-engagement",
-      maintainerId: await getCurrentMemberId(),
-      iteration: iterations[0],
+      key: experimentKey,
+      maintainerId: memberId,
+      iteration: iterationInput,
     }
   );
+
+  return experimentKey;
 };
 
-const startExperiment = async () => {
-  console.log("Starting experiment iteration...");
-  const experiments = await apiCall(
-    "GET",
-    `/projects/${LD_PROJECT_KEY}/environments/${LD_ENVIRONMENT_KEY}/experiments?filter=flagKey:${FLAG_KEY}`
-  );
-
-  if (experiments?.items?.length > 0) {
-    const experiment = experiments.items[0];
-    const currentIteration = experiment.currentIteration;
-
-    if (currentIteration && currentIteration.status === "not_started") {
-      await apiCall(
-        "POST",
-        `/projects/${LD_PROJECT_KEY}/environments/${LD_ENVIRONMENT_KEY}/experiments/recommendations-engagement/iterations`,
-        { action: "start" }
-      );
-      console.log("  Experiment started.");
-    } else {
-      console.log("  Experiment already running or no iteration found.");
+const startExperiment = async (experimentKey) => {
+  console.log("Starting experiment...");
+  await apiCall(
+    "PATCH",
+    `/projects/${LD_PROJECT_KEY}/environments/${LD_ENVIRONMENT_KEY}/experiments/${experimentKey}`,
+    {
+      instructions: [{ kind: "startIteration" }],
     }
-  }
-};
-
-const getFlagVariationId = async (index) => {
-  const flag = await apiCall("GET", `/flags/${LD_PROJECT_KEY}/${FLAG_KEY}`);
-  return flag.variations[index]._id;
-};
-
-const getFlagConfigVersion = async () => {
-  const flag = await apiCall("GET", `/flags/${LD_PROJECT_KEY}/${FLAG_KEY}`);
-  return flag.environments[LD_ENVIRONMENT_KEY].version;
-};
-
-const getCurrentMemberId = async () => {
-  const me = await apiCall("GET", "/members/me");
-  return me._id;
+  );
+  console.log("  Experiment started.");
 };
 
 const main = async () => {
@@ -213,15 +174,18 @@ const main = async () => {
     process.exit(1);
   }
 
+  const experimentKey = `rec-engagement-${timestamp()}`;
+
   try {
     await createFlag();
     await enableFlag();
     await createMetric();
-    await createExperiment();
-    await startExperiment();
+    await createExperiment(experimentKey);
+    await startExperiment(experimentKey);
 
     console.log("\nSetup complete!");
-    console.log("You can now run simulations:");
+    console.log(`Experiment key: ${experimentKey}`);
+    console.log("\nYou can now run simulations:");
     console.log("  npm run simulate:win");
     console.log("  npm run simulate:lose");
     console.log("  npm run simulate:inconclusive");

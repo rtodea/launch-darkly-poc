@@ -8,6 +8,7 @@
   },
   "scripts": {
     "setup": "node src/setup.js",
+    "cleanup": "node src/cleanup.js",
     "simulate:win": "node src/run.js --scenario=win",
     "simulate:lose": "node src/run.js --scenario=lose",
     "simulate:inconclusive": "node src/run.js --scenario=inconclusive",

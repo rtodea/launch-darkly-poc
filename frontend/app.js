@@ -3,13 +3,25 @@
  * Integrates with LaunchDarkly client-side SDK to demonstrate
  * real-time flag evaluation and event tracking.
  *
- * The LD client-side ID is injected via a global variable or
- * read from the URL query parameter: ?clientId=YOUR_CLIENT_SIDE_ID
+ * URL parameters:
+ *   ?clientId=YOUR_CLIENT_SIDE_ID   (required)
+ *   ?variation=control              (force control — no recommendations)
+ *   ?variation=treatment            (force treatment — show recommendations)
+ *
+ * To show A/B side by side, open two tabs:
+ *   Tab 1: ?clientId=XXX&variation=control
+ *   Tab 2: ?clientId=XXX&variation=treatment
  */
 
-const getClientSideId = () => {
-  const params = new URLSearchParams(window.location.search);
-  return params.get("clientId") || window.LD_CLIENT_SIDE_ID || null;
+const getParam = (key) => new URLSearchParams(window.location.search).get(key);
+
+const getClientSideId = () => getParam("clientId") || window.LD_CLIENT_SIDE_ID || null;
+
+const getForcedVariation = () => {
+  const v = getParam("variation");
+  if (v === "control") return false;
+  if (v === "treatment") return true;
+  return null;
 };
 
 const generateDeviceId = () => {
@@ -29,7 +41,7 @@ const updateDebug = (fields) => {
 
 let eventCount = 0;
 
-const trackContentClick = (client, context, contentId) => {
+const trackContentClick = (client, context) => {
   client.track("content-clicked", context.key);
   eventCount++;
   updateDebug({ events: eventCount });
@@ -41,11 +53,24 @@ const showRecommendations = () => {
   if (row) row.classList.add("visible");
 };
 
+const hideRecommendations = () => {
+  const row = document.getElementById("recommendations");
+  if (row) row.classList.remove("visible");
+};
+
+const applyVariation = (showRecs) => {
+  updateDebug({ flag: showRecs ? "treatment" : "control" });
+  if (showRecs) {
+    showRecommendations();
+  } else {
+    hideRecommendations();
+  }
+};
+
 const bindTileClicks = (client, context) => {
   document.querySelectorAll(".tile").forEach((tile) => {
     tile.addEventListener("click", () => {
-      const contentId = tile.dataset.content;
-      trackContentClick(client, context, contentId);
+      trackContentClick(client, context);
 
       // Visual feedback
       tile.style.boxShadow = "0 0 20px rgba(102, 126, 234, 0.6)";
@@ -56,6 +81,7 @@ const bindTileClicks = (client, context) => {
 
 const init = async () => {
   const clientSideId = getClientSideId();
+  const forcedVariation = getForcedVariation();
 
   if (!clientSideId) {
     updateDebug({
@@ -90,25 +116,23 @@ const init = async () => {
 
     updateDebug({ status: "Connected" });
 
-    const showRecs = client.variation("show-recommendations", false);
-    updateDebug({ flag: showRecs ? "treatment" : "control" });
+    // Use forced variation if set, otherwise use LD evaluation
+    const showRecs = forcedVariation !== null
+      ? forcedVariation
+      : client.variation("show-recommendations", false);
 
-    if (showRecs) {
-      showRecommendations();
-    }
+    const mode = forcedVariation !== null ? " (forced)" : "";
+    updateDebug({ flag: (showRecs ? "treatment" : "control") + mode });
+    applyVariation(showRecs);
 
     bindTileClicks(client, context);
 
-    // Listen for flag changes in real time
-    client.on("change:show-recommendations", (value) => {
-      updateDebug({ flag: value ? "treatment" : "control" });
-      if (value) {
-        showRecommendations();
-      } else {
-        const row = document.getElementById("recommendations");
-        if (row) row.classList.remove("visible");
-      }
-    });
+    // Listen for flag changes (only when not forcing)
+    if (forcedVariation === null) {
+      client.on("change:show-recommendations", (value) => {
+        applyVariation(value);
+      });
+    }
   } catch (err) {
     updateDebug({ status: "Error: " + err.message });
     console.error("LD initialization failed:", err);
