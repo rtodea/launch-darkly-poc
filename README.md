@@ -57,11 +57,12 @@ graph LR
 | `lose` | 25% | 13% | 2,000 | Control wins (treatment hurts) |
 | `inconclusive` | 18% | 19% | 2,000 | No significant difference |
 
+**Important:** Each scenario needs its own experiment. Run `npm run cleanup` then `npm run setup` between scenarios to get clean results. For a meeting, the `win` scenario is the most impressive to demo live.
+
 ## Prerequisites
 
 - Node.js 24+ (see `.nvmrc`)
 - A [LaunchDarkly](https://launchdarkly.com/) account (free trial works)
-- An API access token with `writer` scope
 
 ## Quick Start
 
@@ -72,21 +73,34 @@ nvm use
 npm install
 ```
 
-### 2. Configure
+### 2. Configure LaunchDarkly
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` with your LaunchDarkly credentials:
+#### Get your keys from the LD Dashboard
 
-| Variable | Where to Find |
-|----------|--------------|
-| `LD_SDK_KEY` | Dashboard → Settings → Projects → Your Environment → SDK Key |
-| `LD_CLIENT_SIDE_ID` | Same page → Client-side ID |
-| `LD_API_KEY` | Dashboard → Account Settings → Authorization → Create Token (writer scope) |
-| `LD_PROJECT_KEY` | Your project key (default: `launch-darkly-poc`) |
-| `LD_ENVIRONMENT_KEY` | Your environment key (default: `production`) |
+1. **SDK Key + Client-side ID**: Go to **Settings → Projects → Your Project → Environments → test**
+   - Copy the **SDK key** (starts with `sdk-`) → paste as `LD_SDK_KEY`
+   - Copy the **Client-side ID** → paste as `LD_CLIENT_SIDE_ID`
+
+2. **API access token**: Go to **Account Settings → Authorization → Access Tokens**
+   - Create a new token — **do NOT check** "Service token" (use a personal token)
+   - Give it **Writer** role
+   - Copy the token → paste as `LD_API_KEY`
+
+3. **Project key**: Check your dashboard URL — e.g. `app.launchdarkly.com/projects/default/...` means the key is `default`
+
+Your `.env` should look like:
+
+```
+LD_SDK_KEY=sdk-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+LD_CLIENT_SIDE_ID=xxxxxxxxxxxxxxxxxxxxxxxx
+LD_API_KEY=api-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+LD_PROJECT_KEY=default
+LD_ENVIRONMENT_KEY=test
+```
 
 ### 3. Set Up LaunchDarkly Resources
 
@@ -97,7 +111,9 @@ npm run setup
 This automatically creates via the REST API:
 - Feature flag: `show-recommendations` (boolean, 50/50 rollout)
 - Metric: `content-clicked` (custom conversion)
-- Experiment: "Recommendations Row Engagement" (links flag to metric)
+- Experiment: timestamped (e.g. `rec-engagement-2026-03-28-14_30`)
+
+The flag and metric are created once and reused. Each `setup` creates a new timestamped experiment.
 
 ### 4. Run the Simulation
 
@@ -111,11 +127,6 @@ npm run demo
 npm run simulate:win
 npm run simulate:lose
 npm run simulate:inconclusive
-```
-
-**Run all three scenarios:**
-```bash
-npm run simulate:all
 ```
 
 **Custom options:**
@@ -136,13 +147,29 @@ node src/run.js --scenario=win --staggered --wave-size=50 --delay=5000
 npm run serve
 ```
 
-Open `http://localhost:3000?clientId=YOUR_CLIENT_SIDE_ID`
+Open `http://localhost:3000?clientId=YOUR_CLIENT_SIDE_ID` (use the `LD_CLIENT_SIDE_ID` value from your `.env`).
 
-This shows a mock iOS streaming app that:
-- Evaluates the feature flag on load
-- Shows/hides the recommendations row based on the variation
-- Tracks click events to the LD experiment
-- Updates in real time when the flag is toggled
+#### Showing A/B Side by Side
+
+To demonstrate both variations to stakeholders, open two browser tabs:
+
+- **Control (no recommendations):** `http://localhost:3000?clientId=YOUR_ID&variation=control`
+- **Treatment (with recommendations):** `http://localhost:3000?clientId=YOUR_ID&variation=treatment`
+
+The `variation` parameter forces the UI into a specific state regardless of what LD assigns. Without it, LD decides which variation the user sees based on the flag's 50/50 rollout.
+
+Clicking any content tile sends a `content-clicked` event to LD, visible in the experiment dashboard.
+
+### 6. Cleanup Between Runs
+
+Each scenario needs a fresh experiment. To reset:
+
+```bash
+npm run cleanup
+npm run setup
+```
+
+`cleanup` archives all active experiments. `setup` creates a fresh timestamped one. The flag and metric are reused across runs.
 
 ## Docker
 
@@ -162,7 +189,7 @@ npx vercel --prod
 
 Then open the deployed URL with `?clientId=YOUR_CLIENT_SIDE_ID`.
 
-## Presentation Flow
+## Meeting Day Workflow
 
 ```mermaid
 sequenceDiagram
@@ -171,30 +198,49 @@ sequenceDiagram
     participant LD as LD Dashboard
     participant SIM as Simulator (Terminal)
 
-    P->>FE: Open mock iOS app
-    P->>LD: Show flag is OFF → standard UI
-    P->>LD: Toggle flag ON
-    FE->>FE: Recommendations row appears (live)
-    P->>FE: Click content tiles → events tracked
+    P->>P: npm run cleanup && npm run setup
+    P->>FE: Open two tabs (control + treatment)
+    P->>P: Show A/B difference to stakeholders
 
-    Note over P,SIM: "Now let's see what happens at scale"
+    Note over P,FE: "This is what the feature looks like"
 
+    P->>LD: Open Experiments tab
     P->>SIM: npm run demo
-    P->>LD: Switch to Experiments tab
     Note over LD: Dashboard updates in real time
     Note over LD: Confidence grows wave by wave
     SIM-->>LD: 2,000 users over ~60 seconds
     LD-->>P: Treatment wins with >95% confidence
 ```
 
-**Suggested talking points during the demo:**
+### Step-by-step
 
-1. **Show the frontend** — "Here's what the feature looks like. Notice the recommendations row appears when the flag is on."
-2. **Toggle the flag** — "This is instant, no deploy needed. We can turn features on/off for any segment."
-3. **Start the simulator** — "Now let's simulate what happens with 2,000 real users."
-4. **Watch the dashboard** — "See the confidence interval narrowing in real time. The treatment is winning."
-5. **Show the lose scenario** — "Not every experiment wins. Here's what it looks like when the feature hurts engagement."
-6. **Show inconclusive** — "And sometimes we just don't have enough data to know. LD tells us that too."
+1. **Before the meeting**: Run `npm run cleanup && npm run setup` to create a fresh experiment
+2. **Show the frontend**: Open two tabs side by side with `?variation=control` and `?variation=treatment` to show the A/B difference
+3. **Show the dashboard**: Open the LD Experiments tab — it shows "Not started" or just the empty experiment
+4. **Start the simulator**: Run `npm run demo` in a terminal visible to stakeholders
+5. **Watch the dashboard**: Switch to the LD Experiments tab and watch confidence intervals narrow in real time
+6. **Declare winner**: After ~60 seconds, treatment should show >95% confidence
+
+### Talking points
+
+1. **"Here's what the feature looks like"** — show control vs treatment tabs
+2. **"This is instant, no deploy"** — toggle the flag in LD, watch the UI update
+3. **"Now let's simulate 2,000 real users"** — start the simulator
+4. **"Watch the confidence grow"** — dashboard updates live
+5. **"Not every experiment wins"** — mention the lose and inconclusive scenarios exist
+6. **"LD tells us when we don't have enough data"** — statistical rigor, not gut feeling
+
+## Available Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run setup` | Create flag, metric, and timestamped experiment in LD |
+| `npm run cleanup` | Archive all active experiments (flag and metric kept) |
+| `npm run demo` | Run `win` scenario in staggered mode (for presentations) |
+| `npm run simulate:win` | Simulate treatment winning (burst mode) |
+| `npm run simulate:lose` | Simulate treatment losing (burst mode) |
+| `npm run simulate:inconclusive` | Simulate inconclusive result (burst mode) |
+| `npm run serve` | Serve the frontend on port 3000 |
 
 ## Project Structure
 
@@ -204,10 +250,12 @@ launch-darkly-poc/
 │   ├── config.js         # Environment variables and flag/metric keys
 │   ├── context.js        # User context generation (device simulation)
 │   ├── client.js         # LD server SDK wrapper
+│   ├── api.js            # Shared LD REST API utilities
 │   ├── scenarios.js      # Three scenario definitions (pure data)
 │   ├── simulator.js      # Core simulation engine (functional)
 │   ├── logger.js         # Console output formatting
 │   ├── setup.js          # LD resource creation via REST API
+│   ├── cleanup.js        # LD resource teardown (archive experiments)
 │   └── run.js            # CLI entry point (imperative shell)
 ├── frontend/
 │   ├── index.html        # Mock iOS streaming app

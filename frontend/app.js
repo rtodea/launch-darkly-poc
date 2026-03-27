@@ -27,7 +27,12 @@ const getForcedVariation = () => {
 const generateDeviceId = () => {
   const stored = localStorage.getItem("zeam-device-id");
   if (stored) return stored;
-  const id = crypto.randomUUID();
+  const id = typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : Array.from(crypto.getRandomValues(new Uint8Array(16)))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("")
+        .replace(/(.{8})(.{4})(.{4})(.{4})(.{12})/, "$1-$2-$3-$4-$5");
   localStorage.setItem("zeam-device-id", id);
   return id;
 };
@@ -108,6 +113,12 @@ const init = async () => {
     },
   };
 
+  // Apply forced variation immediately (no LD dependency)
+  if (forcedVariation !== null) {
+    updateDebug({ status: "Forced mode", flag: (forcedVariation ? "treatment" : "control") + " (forced)" });
+    applyVariation(forcedVariation);
+  }
+
   try {
     updateDebug({ status: "Connecting..." });
 
@@ -116,25 +127,19 @@ const init = async () => {
 
     updateDebug({ status: "Connected" });
 
-    // Use forced variation if set, otherwise use LD evaluation
-    const showRecs = forcedVariation !== null
-      ? forcedVariation
-      : client.variation("show-recommendations", false);
-
-    const mode = forcedVariation !== null ? " (forced)" : "";
-    updateDebug({ flag: (showRecs ? "treatment" : "control") + mode });
-    applyVariation(showRecs);
-
-    bindTileClicks(client, context);
-
-    // Listen for flag changes (only when not forcing)
+    // Only use LD evaluation when not forcing
     if (forcedVariation === null) {
+      const showRecs = client.variation("show-recommendations", false);
+      applyVariation(showRecs);
+
       client.on("change:show-recommendations", (value) => {
         applyVariation(value);
       });
     }
+
+    bindTileClicks(client, context);
   } catch (err) {
-    updateDebug({ status: "Error: " + err.message });
+    updateDebug({ status: forcedVariation !== null ? "Forced mode (LD offline)" : "Error: " + err.message });
     console.error("LD initialization failed:", err);
   }
 };
