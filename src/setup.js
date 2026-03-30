@@ -89,7 +89,8 @@ const createMetric = async () => {
 };
 
 const buildIterationInput = async () => {
-  const flag = await getFlag();
+  // Must fetch fresh — enableFlag() bumps the version
+  const flag = await getFlag({ fresh: true });
   return {
     hypothesis: "Adding a recommendations row will increase content engagement by at least 10%",
     canReshuffleTraffic: true,

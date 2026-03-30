@@ -171,6 +171,28 @@ npm run setup
 
 `cleanup` archives all active experiments. `setup` creates a fresh timestamped one. The flag and metric are reused across runs.
 
+**Manual stop required:** If an experiment is currently running, you must **stop it from the LD dashboard UI** before cleanup can archive it. This is a LaunchDarkly API limitation — stopping an experiment requires selecting a "winning treatment", which the API only accepts as a treatment ID from a properly configured iteration. The cleanup script handles archiving, but the stop must be done manually:
+
+1. Go to **Experiments → your experiment**
+2. Click **Stop iteration** → select any winner
+3. Then run `npm run cleanup` to archive it
+
+## Verifying Events in the Dashboard
+
+After running a simulation, you can verify events are arriving:
+
+1. **Live events**: Go to **Flags → show-recommendations → Audience** (in the `test` environment). You should see user contexts appearing within seconds.
+
+2. **Experiment results**: Go to **Experiments → your experiment**. Results take **15-30 minutes** to appear after the first events arrive. LD's Bayesian engine processes events in batches, not in real time. On trial plans, this may take longer.
+
+3. **What to look for in the results**:
+   - **Conversion rate** per variation (control vs treatment)
+   - **Probability to beat baseline** — this is the key number, it grows toward 95%+
+   - **Credible interval** — narrows as more data arrives
+   - **"Winner" badge** — appears when confidence exceeds the threshold (default 95%)
+
+4. **If you see "0 user contexts"**: Make sure the environment dropdown at the top of the dashboard says **test** (not production). The SDK key in `.env` must match the same environment.
+
 ## Docker
 
 ```bash
@@ -214,12 +236,12 @@ sequenceDiagram
 
 ### Step-by-step
 
-1. **Before the meeting**: Run `npm run cleanup && npm run setup` to create a fresh experiment
+1. **30 minutes before the meeting**: Run `npm run cleanup && npm run setup` then `npm run demo` — this gives LD time to process the data before you present
 2. **Show the frontend**: Open two tabs side by side with `?variation=control` and `?variation=treatment` to show the A/B difference
-3. **Show the dashboard**: Open the LD Experiments tab — it shows "Not started" or just the empty experiment
-4. **Start the simulator**: Run `npm run demo` in a terminal visible to stakeholders
-5. **Watch the dashboard**: Switch to the LD Experiments tab and watch confidence intervals narrow in real time
-6. **Declare winner**: After ~60 seconds, treatment should show >95% confidence
+3. **Verify events arrived**: Go to **Flags → show-recommendations → Audience** — you should see user contexts
+4. **Show the experiment results**: Go to **Experiments → your experiment** — by now the results should be populating with confidence intervals
+5. **Run a second simulation live** (optional): Run `npm run simulate:win` during the meeting for the "watch it happen" effect — the numbers in the experiment will update
+6. **Declare winner**: Point out the probability to beat baseline exceeding 95%
 
 ### Talking points
 

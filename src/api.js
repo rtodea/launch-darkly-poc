@@ -52,8 +52,8 @@ export const apiCall = async (method, path, body, opts = {}) => {
 let cachedFlag = null;
 let cachedMemberId = null;
 
-export const getFlag = async () => {
-  if (!cachedFlag) {
+export const getFlag = async ({ fresh = false } = {}) => {
+  if (!cachedFlag || fresh) {
     cachedFlag = await apiCall("GET", `/flags/${LD_PROJECT_KEY}/${FLAG_KEY}`);
   }
   return cachedFlag;

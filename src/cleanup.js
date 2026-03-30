@@ -17,7 +17,7 @@ import {
   LD_ENVIRONMENT_KEY,
   FLAG_KEY,
 } from "./config.js";
-import { apiCall } from "./api.js";
+import { apiCall, getFlag } from "./api.js";
 
 const archiveAllExperiments = async () => {
   console.log("Looking for active experiments...");
@@ -46,15 +46,31 @@ const archiveAllExperiments = async () => {
     // Stop running iterations first
     if (exp.currentIteration?.status === "running") {
       console.log(`  Stopping: ${exp.key}`);
-      const treatments = exp.currentIteration.treatments || [];
-      const baselineTreatment = treatments.find((t) => t.baseline);
+
+      // Fetch the full experiment to get treatment IDs
+      const full = await apiCall(
+        "GET",
+        `/projects/${LD_PROJECT_KEY}/environments/${LD_ENVIRONMENT_KEY}/experiments/${exp.key}`,
+        null,
+        { ignoreNotFound: true }
+      );
+      const treatments = full?.currentIteration?.treatments || [];
+      let winningId = treatments.find((t) => t.baseline)?._id || treatments[0]?._id;
+
+      // Fallback: use the flag's control variation ID
+      if (!winningId) {
+        const flag = await getFlag();
+        winningId = flag?.variations?.[0]?._id;
+      }
+
       await apiCall(
         "PATCH",
         `/projects/${LD_PROJECT_KEY}/environments/${LD_ENVIRONMENT_KEY}/experiments/${exp.key}`,
         {
           instructions: [{
             kind: "stopIteration",
-            winningTreatmentId: baselineTreatment?._id || treatments[0]?._id,
+            winningTreatmentId: winningId,
+            winningReason: "cleanup",
           }],
         },
         { ignoreNotFound: true }
