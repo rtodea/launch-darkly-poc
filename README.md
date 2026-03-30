@@ -220,28 +220,42 @@ sequenceDiagram
     participant LD as LD Dashboard
     participant SIM as Simulator (Terminal)
 
+    Note over P: 30 min before meeting
     P->>P: npm run cleanup && npm run setup
+    P->>SIM: npm run demo
+    Note over LD: Events arrive, processing begins (15-30 min)
+
+    Note over P: Meeting starts
     P->>FE: Open two tabs (control + treatment)
     P->>P: Show A/B difference to stakeholders
 
     Note over P,FE: "This is what the feature looks like"
 
-    P->>LD: Open Experiments tab
-    P->>SIM: npm run demo
-    Note over LD: Dashboard updates in real time
-    Note over LD: Confidence grows wave by wave
-    SIM-->>LD: 2,000 users over ~60 seconds
-    LD-->>P: Treatment wins with >95% confidence
+    P->>LD: Open Experiments tab (results already visible)
+    P->>SIM: npm run simulate:win (optional live burst)
+    Note over LD: Numbers climb in near-real-time
+    LD-->>P: 100% probability treatment wins
 ```
+
+### Important: Processing Delay
+
+LD's experiment engine processes events in **batches**, not in real time. After sending events:
+
+- **Events appear immediately** under Flags → show-recommendations → Audience
+- **Experiment results take 15-30 minutes** to populate (sometimes longer on trial plans)
+- Once initial processing completes, subsequent batches update faster (~5 min)
+
+This means you should **run the simulation 30 minutes before your meeting** so the results are ready when you present. You can optionally run a second burst live during the meeting — the incremental data will appear faster since the pipeline is already warm.
 
 ### Step-by-step
 
-1. **30 minutes before the meeting**: Run `npm run cleanup && npm run setup` then `npm run demo` — this gives LD time to process the data before you present
-2. **Show the frontend**: Open two tabs side by side with `?variation=control` and `?variation=treatment` to show the A/B difference
-3. **Verify events arrived**: Go to **Flags → show-recommendations → Audience** — you should see user contexts
-4. **Show the experiment results**: Go to **Experiments → your experiment** — by now the results should be populating with confidence intervals
-5. **Run a second simulation live** (optional): Run `npm run simulate:win` during the meeting for the "watch it happen" effect — the numbers in the experiment will update
-6. **Declare winner**: Point out the probability to beat baseline exceeding 95%
+1. **30 minutes before the meeting**: Stop any running experiment in the LD UI, then run `npm run cleanup && npm run setup && npm run demo`
+2. **Verify events arrived**: Go to **Flags → show-recommendations → Audience** — you should see ~2,000 user contexts
+3. **Wait for processing**: Check **Experiments → your experiment** — results should appear within 15-30 minutes
+4. **Show the frontend**: Open two tabs side by side with `?variation=control` and `?variation=treatment` to show the A/B difference
+5. **Show the experiment results**: The dashboard should show conversion rates, confidence intervals, and probability to beat baseline
+6. **Run a live burst** (optional): Run `npm run simulate:win` during the meeting — the user count and confidence will climb
+7. **Declare winner**: Point out the probability to beat baseline at 100% (or >95%)
 
 ### Talking points
 
